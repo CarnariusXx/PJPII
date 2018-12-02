@@ -10,7 +10,7 @@ screen = pygame.display.set_mode((800, 600))
 pygame.display.set_caption('AoS')
 
 
-plane = pygame.image.load("aud/plane.jpg")
+plane = pygame.image.load("aud/plane.png")
 plane_top = screen.get_height() - plane.get_height()
 plane_left = screen.get_width()/2 - plane.get_width()/2
 
