@@ -8,15 +8,21 @@ background_colour = (0,0,0)
 
 screen = pygame.display.set_mode((800, 600))
 pygame.display.set_caption('AoS')
+icon = pygame.image.load("aud/icon.png")       
+pygame.display.set_icon(icon)
 
 
-plane = pygame.image.load("aud/plane.jpg")
+plane = pygame.image.load("aud/plane01.png")
 plane_top = screen.get_height() - plane.get_height()
 plane_left = screen.get_width()/2 - plane.get_width()/2
 
+enemy = pygame.image.load("aud/enemy_01.png")
+enemy_top = screen.get_height()/2
+enemy_left = screen.get_width()/2 
 
 
 screen.blit(plane, (plane_left,plane_top))
+screen.blit(enemy, (enemy_left,enemy_top))
 
 shot = pygame.image.load("aud/bullet.png")
 shoot_y = 0
@@ -26,6 +32,7 @@ while True:
     screen.fill((0,0,0))
     x,y = pygame.mouse.get_pos()
     screen.blit(plane, (x-plane.get_width()/2, plane_top))
+    screen.blit(enemy, (enemy_left,enemy_top))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             sys.exit()
