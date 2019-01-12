@@ -4,25 +4,33 @@ import sys
 from os.path import abspath, dirname
 from random import randint, choice
 
+
+
 pygame.init()
 BASE_PATH = abspath(dirname(__file__))
 FONT_PATH = BASE_PATH + '/fonts/'
 IMAGE_PATH = BASE_PATH + '/images/'
 SOUND_PATH = BASE_PATH + '/sounds/'
 
-pygame.mouse.set_visible(0)
+pygame.mouse.set_visible(1)
 pygame.display.set_caption('AoS')
 icon = pygame.image.load("images/icon.png")       
 pygame.display.set_icon(icon)
 
-
+RED = (255, 0, 0)
 YELLOW = (241, 255, 0)
 SCREEN = display.set_mode((800, 600))
 FONT = FONT_PATH + 'tt0588m.ttf'
-IMG_NAMES = ['plane','enemy1_1', 'enemy1_2','enemy2_1', 'enemy2_2','enemy3_1', 'enemy3_2','bullet', 'icon', 'new']
+IMG_NAMES = ['plane','Bonus', 'enemy1_1', 'enemy1_2','enemy2_1', 'enemy2_2','enemy3_1', 'enemy3_2','bullet', 'icon', 'new']
 IMAGES = {name: image.load(IMAGE_PATH + '{}.png'.format(name)).convert_alpha()
           for name in IMG_NAMES}
 
+
+DISPLAYWIDTH = 800
+DISPLAYHEIGHT = 600
+XMARGIN = 50
+YMARGIN = 50
+klik = pygame.mouse.get_pressed()
 
 class Ship(sprite.Sprite):
     def __init__(self):
@@ -175,6 +183,48 @@ class EnemiesGroup(sprite.Group):
                 self.leftAddMove = self._leftKilledColumns * 5
                 isColumnDead = self.is_column_dead(self._leftAliveColumn)
 
+class Mystery(sprite.Sprite):
+    def __init__(self):
+        sprite.Sprite.__init__(self)
+        self.image = IMAGES['Bonus']
+        self.image = transform.scale(self.image, (75, 35))
+        self.rect = self.image.get_rect(topleft=(-80, 45))
+        self.row = 5
+        self.moveTime = 25000
+        self.direction = 1
+        self.timer = time.get_ticks()
+        self.mysteryEntered = mixer.Sound(SOUND_PATH + 'mysteryentered.wav')
+        self.mysteryEntered.set_volume(1)
+        self.playSound = True
+
+    def update(self, keys, currentTime, *args):
+        resetTimer = False
+        passed = currentTime - self.timer
+        if passed > self.moveTime:
+            if (self.rect.x < 0 or self.rect.x > 800) and self.playSound:
+                self.mysteryEntered.play()
+                self.playSound = False
+            if self.rect.x < 840 and self.direction == 1:
+                self.mysteryEntered.fadeout(4000)
+                self.rect.x += 2
+                game.screen.blit(self.image, self.rect)
+            if self.rect.x > -100 and self.direction == -1:
+                self.mysteryEntered.fadeout(4000)
+                self.rect.x -= 2
+                game.screen.blit(self.image, self.rect)
+
+        if self.rect.x > 830:
+            self.playSound = True
+            self.direction = -1
+            resetTimer = True
+        if self.rect.x < -90:
+            self.playSound = True
+            self.direction = 1
+            resetTimer = True
+        if passed > self.moveTime and resetTimer:
+            self.timer = currentTime    
+                
+
 
 class Life(sprite.Sprite):
     def __init__(self, xpos, ypos):
@@ -216,6 +266,8 @@ class AoS(object):
         self.playerGroup = sprite.Group(self.player)
         self.bullets = sprite.Group()
         self.enemyBullets = sprite.Group()
+        self.mysteryShip = Mystery()
+        self.mysteryGroup = sprite.Group(self.mysteryShip)
         self.reset_lives(lives)
         self.enemyPosition = self.enemyPositionStart
         self.make_enemies()
@@ -269,6 +321,11 @@ class AoS(object):
         self.nextRoundText = Text(FONT, 50, 'Next Round', YELLOW, 240, 270)
         self.scoreText = Text(FONT, 20, 'Score', YELLOW, 5, 5)
         self.livesText = Text(FONT, 20, 'Lives ', YELLOW, 640, 5)
+        self.buttonText1 = Text(FONT, 18, 'NEW GAME', YELLOW, 318, 270)
+        self.buttonText2 = Text(FONT, 18, 'LEADERBOARD', YELLOW, 318, 340)
+        self.buttonText3 = Text(FONT, 18, 'EXIT', YELLOW, 318,420)
+
+
 
     @staticmethod
     def should_exit(evt):
@@ -295,6 +352,7 @@ class AoS(object):
                             self.bullets.add(rightbullet)
                             self.allSprites.add(self.bullets)
                             self.sounds['shoot'].play()
+                           
 
     def make_enemies(self):
         enemies = EnemiesGroup(10, 5)
@@ -305,7 +363,7 @@ class AoS(object):
                 enemy.rect.y = self.enemyPosition + (row * 45)
                 enemies.add(enemy)
         self.enemies = enemies
-        self.allSprites = sprite.Group(self.player, self.enemies, self.livesGroup)
+        self.allSprites = sprite.Group(self.player, self.enemies, self.livesGroup, self.mysteryShip)
 
     def make_enemies_shoot(self):
         if (time.get_ticks() - self.timer) > 700:
@@ -328,11 +386,26 @@ class AoS(object):
         score = scores[row]
         self.score += score
         return score
+    
+    
+    
+    def butt(self):
+        pygame.draw.rect(SCREEN, RED,(318,270,100,50))
+        self.buttonText1.draw(self.screen)
+        pygame.draw.rect(SCREEN, RED,(318,340,100,50))
+        self.buttonText2.draw(self.screen)
+        pygame.draw.rect(SCREEN, RED,(318,420,100,50))
+        self.buttonText3.draw(self.screen)
+        klik= pygame.mouse.get_pressed()
+        if klik[1]:
+            game = AoS()
+            game.main()
+
 
     def mainmenu(self):
-        self.enemy1 = IMAGES['new']
-        self.enemy1 = transform.scale(self.enemy1, (150, 90))
-        self.screen.blit(self.enemy1, (318, 270))
+        self.butt()
+        
+
         self.titleText.draw(self.screen)
         
         for e in event.get():
@@ -341,6 +414,10 @@ class AoS(object):
             if e.type == KEYUP:
                 self.startGame = True
                 self.mainScreen = False
+
+
+  
+        
 
     def update_enemy_speed(self):
         if len(self.enemies) <= 10:
@@ -371,6 +448,25 @@ class AoS(object):
                     self.enemies.remove(currentSprite)
                     self.gameTimer = time.get_ticks()
                     break
+        mysterydict = sprite.groupcollide(self.bullets, self.mysteryGroup,
+                                          True, True)
+        if mysterydict:
+            for value in mysterydict.values():
+                for currentSprite in value:
+                    currentSprite.mysteryEntered.stop()
+                    self.sounds['enemykill'].play()
+                    score = self.scores(currentSprite.row)
+                    #explosion = Explosion(currentSprite.rect.x,
+                                      #    currentSprite.rect.y,
+                                       # currentSprite.row, False, True,
+                                         # score)
+                    #self.explosionsGroup.add(explosion)
+                    self.allSprites.remove(currentSprite)
+                    self.mysteryGroup.remove(currentSprite)
+                    newShip = Mystery()
+                    self.allSprites.add(newShip)
+                    self.mysteryGroup.add(newShip)
+                    break       
 
 
         bulletsdict = sprite.groupcollide(self.enemyBullets, self.playerGroup,
@@ -430,12 +526,15 @@ class AoS(object):
             if self.should_exit(e):
                 sys.exit()
 
+
+
     def main(self):
         while True:
             if self.mainScreen:
                 self.reset(0, 3, True)
                 self.screen.blit(self.background, (0, 0))
                 self.mainmenu()
+                
 
             elif self.startGame:
                 if len(self.enemies) == 0:
@@ -456,10 +555,6 @@ class AoS(object):
                 else:
                     currentTime = time.get_ticks()
                     self.screen.blit(self.background, (0, 0))
-                    self.scoreText2 = Text(FONT, 20, str(self.score), YELLOW,85, 5)
-                    self.scoreText.draw(self.screen)
-                    self.scoreText2.draw(self.screen)
-                    self.livesText.draw(self.screen)
                     self.input()
                     self.allSprites.update(self.keys, currentTime, self.enemies)
                     self.collisions()
@@ -476,7 +571,7 @@ class AoS(object):
             display.update()
             self.clock.tick(60)
 
-
 if __name__ == '__main__':
     game = AoS()
     game.main()
+
