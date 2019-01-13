@@ -7,6 +7,7 @@ from random import randint, choice
 
 
 pygame.init()
+#
 BASE_PATH = abspath(dirname(__file__))
 FONT_PATH = BASE_PATH + '/fonts/'
 IMAGE_PATH = BASE_PATH + '/images/'
@@ -20,17 +21,13 @@ pygame.display.set_icon(icon)
 RED = (255, 0, 0)
 YELLOW = (241, 255, 0)
 SCREEN = display.set_mode((800, 600))
-FONT = FONT_PATH + 'tt0588m.ttf'
-IMG_NAMES = ['plane','Bonus', 'enemy1_1', 'enemy1_2','enemy2_1', 'enemy2_2','enemy3_1', 'enemy3_2','bullet', 'icon', 'new']
+FONT = FONT_PATH + 'tt0588m.ttf' 
+IMG_NAMES = ['plane','Bonus', 'enemy1_1', 'enemy1_2','enemy2_1', 'enemy2_2','enemy3_1', 'enemy3_2','bullet','bullet2', 'icon', 'explosion2', 'explosion3', 'explosion1']
 IMAGES = {name: image.load(IMAGE_PATH + '{}.png'.format(name)).convert_alpha()
           for name in IMG_NAMES}
 
 
-DISPLAYWIDTH = 800
-DISPLAYHEIGHT = 600
-XMARGIN = 50
-YMARGIN = 50
-klik = pygame.mouse.get_pressed()
+pygame.mixer.Channel(4).play(pygame.mixer.Sound('sounds/menumusic.WAV'))
 
 class Ship(sprite.Sprite):
     def __init__(self):
@@ -183,7 +180,7 @@ class EnemiesGroup(sprite.Group):
                 self.leftAddMove = self._leftKilledColumns * 5
                 isColumnDead = self.is_column_dead(self._leftAliveColumn)
 
-class Mystery(sprite.Sprite):
+class Wunderwaffe(sprite.Sprite):
     def __init__(self):
         sprite.Sprite.__init__(self)
         self.image = IMAGES['Bonus']
@@ -193,8 +190,8 @@ class Mystery(sprite.Sprite):
         self.moveTime = 25000
         self.direction = 1
         self.timer = time.get_ticks()
-        self.mysteryEntered = mixer.Sound(SOUND_PATH + 'mysteryentered.wav')
-        self.mysteryEntered.set_volume(1)
+        self.wunderwaffeEntered = mixer.Sound(SOUND_PATH + 'wunderwaffe.wav')
+        self.wunderwaffeEntered.set_volume(1)
         self.playSound = True
 
     def update(self, keys, currentTime, *args):
@@ -202,15 +199,15 @@ class Mystery(sprite.Sprite):
         passed = currentTime - self.timer
         if passed > self.moveTime:
             if (self.rect.x < 0 or self.rect.x > 800) and self.playSound:
-                self.mysteryEntered.play()
+                self.wunderwaffeEntered.play()
                 self.playSound = False
             if self.rect.x < 840 and self.direction == 1:
-                self.mysteryEntered.fadeout(4000)
-                self.rect.x += 2
+                self.wunderwaffeEntered.fadeout(38000)
+                self.rect.x += 5
                 game.screen.blit(self.image, self.rect)
             if self.rect.x > -100 and self.direction == -1:
-                self.mysteryEntered.fadeout(4000)
-                self.rect.x -= 2
+                self.wunderwaffeEntered.fadeout(38000)
+                self.rect.x -= 6
                 game.screen.blit(self.image, self.rect)
 
         if self.rect.x > 830:
@@ -222,7 +219,54 @@ class Mystery(sprite.Sprite):
             self.direction = 1
             resetTimer = True
         if passed > self.moveTime and resetTimer:
-            self.timer = currentTime    
+            self.timer = currentTime
+
+class Explosion(sprite.Sprite):
+    def __init__(self, xpos, ypos, row, ship, wunderwaffe , score):
+        sprite.Sprite.__init__(self)
+        self.isWunderwaffe = wunderwaffe
+        self.isShip = ship
+        if wunderwaffe:
+            self.text = Text(FONT, 20, str(score), YELLOW, xpos + 20, ypos + 6)
+        elif ship:
+            self.image = IMAGES['plane']
+            self.rect = self.image.get_rect(topleft=(xpos, ypos))
+        else:
+            self.row = row
+            self.load_image()
+            self.image = transform.scale(self.image, (40, 35))
+            self.rect = self.image.get_rect(topleft=(xpos, ypos))
+            game.screen.blit(self.image, self.rect)
+
+        self.timer = time.get_ticks()
+
+    def update(self, keys, currentTime):
+        passed = currentTime - self.timer
+        if self.isWunderwaffe:
+            if passed <= 200:
+                self.text.draw(game.screen)
+            elif 400 < passed <= 600:
+                self.text.draw(game.screen)
+            elif passed > 600:
+                self.kill()
+        elif self.isShip:
+            if 300 < passed <= 600:
+                game.screen.blit(self.image, self.rect)
+            elif passed > 900:
+                self.kill()
+        else:
+            if passed <= 100:
+                game.screen.blit(self.image, self.rect)
+            elif 100 < passed <= 200:
+                self.image = transform.scale(self.image, (50, 45))
+                game.screen.blit(self.image,
+                                 (self.rect.x - 6, self.rect.y - 6))
+            elif passed > 400:
+                self.kill()
+
+    def load_image(self):
+        imgColors = ['1', '2', '2', '3', '3']
+        self.image = IMAGES['explosion{}'.format(imgColors[self.row])]
                 
 
 
@@ -245,11 +289,11 @@ class Text(object):
 
     def draw(self, surface):
         surface.blit(self.surface, self.rect)
-
+    
 
 class AoS(object):
     def __init__(self):
-        mixer.pre_init(44100, -16, 1, 4096)
+        pygame.mixer.pre_init(44100,16,2,4096)
         init()
         self.caption = display.set_caption('AoS')
         self.screen = SCREEN
@@ -260,14 +304,18 @@ class AoS(object):
         self.enemyPositionDefault = 65
         self.enemyPositionStart = self.enemyPositionDefault
         self.enemyPosition = self.enemyPositionStart
-
+        
+        
+        
+        
     def reset(self, score, lives, newGame=False):
         self.player = Ship()
         self.playerGroup = sprite.Group(self.player)
+        self.explosionsGroup = sprite.Group()
         self.bullets = sprite.Group()
         self.enemyBullets = sprite.Group()
-        self.mysteryShip = Mystery()
-        self.mysteryGroup = sprite.Group(self.mysteryShip)
+        self.wunderwaffeShip = Wunderwaffe()
+        self.wunderwaffeGroup = sprite.Group(self.wunderwaffeShip)
         self.reset_lives(lives)
         self.enemyPosition = self.enemyPositionStart
         self.make_enemies()
@@ -282,12 +330,12 @@ class AoS(object):
         self.create_text()
         self.makeNewShip = False
         self.shipAlive = True
-
+    
 
     def reset_lives_sprites(self):
-        self.life1 = Life(715, 3)
-        self.life2 = Life(742, 3)
-        self.life3 = Life(769, 3)
+        self.life1 = Life(60, 5)
+        self.life2 = Life(91, 5)
+        self.life3 = Life(122, 5)
 
         if self.lives == 3:
             self.livesGroup = sprite.Group(self.life1, self.life2, self.life3)
@@ -302,7 +350,7 @@ class AoS(object):
 
     def create_audio(self):
         self.sounds = {}
-        for sound_name in ['shoot', 'enemykill','shipexplosion']:
+        for sound_name in ['shoot', 'enemykill','shipexplosion', 'wunderwaffe', 'menumusic', 'Explosion']:
             self.sounds[sound_name] = mixer.Sound(
                 SOUND_PATH + '{}.wav'.format(sound_name))
             self.sounds[sound_name].set_volume(0.2)
@@ -316,14 +364,14 @@ class AoS(object):
 
 
     def create_text(self):
-        self.titleText = Text(FONT, 90, 'Aces of the Sky', YELLOW, 250, 90)
-        self.gameOverText = Text(FONT, 50, 'Game Over', YELLOW, 250, 270)
-        self.nextRoundText = Text(FONT, 50, 'Next Round', YELLOW, 240, 270)
-        self.scoreText = Text(FONT, 20, 'Score', YELLOW, 5, 5)
-        self.livesText = Text(FONT, 20, 'Lives ', YELLOW, 640, 5)
-        self.buttonText1 = Text(FONT, 18, 'NEW GAME', YELLOW, 318, 270)
-        self.buttonText2 = Text(FONT, 18, 'LEADERBOARD', YELLOW, 318, 340)
-        self.buttonText3 = Text(FONT, 18, 'EXIT', YELLOW, 318,420)
+        self.titleText = Text(FONT, 90, 'Aces of the Sky', YELLOW, 150, 90)
+        self.gameOverText = Text(FONT, 80, 'Game Over', YELLOW, 240, 200)
+        self.nextRoundText = Text(FONT, 80, 'Next Round', YELLOW, 240, 200)
+        self.scoreText = Text(FONT, 20, 'Score: ', YELLOW, 640, 5)
+        self.livesText = Text(FONT, 20, 'Lives: ', YELLOW, 5,5)
+        self.buttonText1 = Text('fonts/ALGER.TTF', 28, 'NEW GAME', YELLOW, 320,350)
+        self.buttonText2 = Text('fonts/ALGER.TTF', 20, 'LEADERBOARD', YELLOW, 325, 425)
+        self.buttonText3 = Text('fonts/ALGER.TTF', 28, 'EXIT', YELLOW, 365,500)
 
 
 
@@ -363,14 +411,14 @@ class AoS(object):
                 enemy.rect.y = self.enemyPosition + (row * 45)
                 enemies.add(enemy)
         self.enemies = enemies
-        self.allSprites = sprite.Group(self.player, self.enemies, self.livesGroup, self.mysteryShip)
+        self.allSprites = sprite.Group(self.player, self.enemies, self.livesGroup, self.wunderwaffeShip)
 
     def make_enemies_shoot(self):
         if (time.get_ticks() - self.timer) > 700:
             enemy = self.enemies.random_bottom()
             if enemy:
                 self.enemyBullets.add(
-                    Bullet(enemy.rect.x + 14, enemy.rect.y + 20, 1, 5,'bullet', 'center'))
+                    Bullet(enemy.rect.x + 14, enemy.rect.y + 20, 1, 5,'bullet2', 'center'))
                 self.allSprites.add(self.enemyBullets)
                 self.timer = time.get_ticks()
 
@@ -390,23 +438,20 @@ class AoS(object):
     
     
     def butt(self):
-        pygame.draw.rect(SCREEN, RED,(318,270,100,50))
+        pygame.draw.rect(SCREEN, RED,(318,340,150,55))
         self.buttonText1.draw(self.screen)
-        pygame.draw.rect(SCREEN, RED,(318,340,100,50))
+        pygame.draw.rect(SCREEN, RED,(318,415,150,55))
         self.buttonText2.draw(self.screen)
-        pygame.draw.rect(SCREEN, RED,(318,420,100,50))
+        pygame.draw.rect(SCREEN, RED,(318,490,150,55))
         self.buttonText3.draw(self.screen)
-        klik= pygame.mouse.get_pressed()
-        if klik[1]:
-            game = AoS()
-            game.main()
+        
 
 
     def mainmenu(self):
         self.butt()
-        
-
         self.titleText.draw(self.screen)
+        mouse = pygame.mouse.get_pos()
+        press = pygame.mouse.get_pressed()
         
         for e in event.get():
             if self.should_exit(e):
@@ -415,9 +460,27 @@ class AoS(object):
                 self.startGame = True
                 self.mainScreen = False
 
+        if 468 > mouse[0] > 318 and 395 > mouse[1] > 340:
+            
+            if press[0] == 1:
+                
+                pygame.mixer.pause()
+                self.startGame = True
+                self.mainScreen = False
+                
+        if 468 > mouse[0] > 318 and 470 > mouse[1] > 415:
+            if press[0] == 1:
+                print ("sss")
+                
+                
+        if 468 > mouse[0] > 318 and 640 > mouse[1] > 490:
+            if press[0] == 1:
+                pygame.quit()
+                quit()
+                
 
-  
-        
+
+
 
     def update_enemy_speed(self):
         if len(self.enemies) <= 10:
@@ -428,44 +491,41 @@ class AoS(object):
                 enemy.moveTime = 200
 
     def collisions(self):
-        collidedict = sprite.groupcollide(self.bullets, self.enemyBullets,
-                                          True, False)
+        collidedict = sprite.groupcollide(self.bullets, self.enemyBullets, True, False)
         if collidedict:
             for value in collidedict.values():
                 for currentSprite in value:
-                    self.enemyBullets.remove(currentSprite)
-                    self.allSprites.remove(currentSprite)
+                        self.enemyBullets.remove(currentSprite)
+                        self.allSprites.remove(currentSprite)
 
-        enemiesdict = sprite.groupcollide(self.bullets, self.enemies,
-                                          True, False)
+        enemiesdict = sprite.groupcollide(self.bullets, self.enemies, True, False)
         if enemiesdict:
             for value in enemiesdict.values():
                 for currentSprite in value:
                     self.enemies.kill(currentSprite)
                     self.sounds['enemykill'].play()
                     score = self.scores(currentSprite.row)
+                    explosion = Explosion(currentSprite.rect.x, currentSprite.rect.y, currentSprite.row, False, False, score)
+                    self.explosionsGroup.add(explosion)
                     self.allSprites.remove(currentSprite)
                     self.enemies.remove(currentSprite)
                     self.gameTimer = time.get_ticks()
                     break
-        mysterydict = sprite.groupcollide(self.bullets, self.mysteryGroup,
+        wunderwaffedict = sprite.groupcollide(self.bullets, self.wunderwaffeGroup,
                                           True, True)
-        if mysterydict:
-            for value in mysterydict.values():
+        if wunderwaffedict:
+            for value in wunderwaffedict.values():
                 for currentSprite in value:
-                    currentSprite.mysteryEntered.stop()
+                    currentSprite.wunderwaffeEntered.stop()
                     self.sounds['enemykill'].play()
                     score = self.scores(currentSprite.row)
-                    #explosion = Explosion(currentSprite.rect.x,
-                                      #    currentSprite.rect.y,
-                                       # currentSprite.row, False, True,
-                                         # score)
-                    #self.explosionsGroup.add(explosion)
+                    explosion = Explosion(currentSprite.rect.x, currentSprite.rect.y, currentSprite.row, False, True, score)
+                    self.explosionsGroup.add(explosion)
                     self.allSprites.remove(currentSprite)
-                    self.mysteryGroup.remove(currentSprite)
-                    newShip = Mystery()
+                    self.wunderwaffeGroup.remove(currentSprite)
+                    newShip = Wunderwaffe()
                     self.allSprites.add(newShip)
-                    self.mysteryGroup.add(newShip)
+                    self.wunderwaffeGroup.add(newShip)
                     break       
 
 
@@ -490,6 +550,9 @@ class AoS(object):
                         self.gameOver = True
                         self.startGame = False
                     self.sounds['shipexplosion'].play()
+                    explosion = Explosion(playerShip.rect.x, playerShip.rect.y,
+                                          0, True, False, 0)
+                    self.explosionsGroup.add(explosion)
                     self.allSprites.remove(playerShip)
                     self.playerGroup.remove(playerShip)
                     self.makeNewShip = True
@@ -510,6 +573,9 @@ class AoS(object):
 
     def create_game_over(self, currentTime):
         self.screen.blit(self.background, (0, 0))
+        self.scoreText2 = Text(FONT, 20, str(self.score), YELLOW, 715, 5)
+        self.scoreText.draw(self.screen)
+        self.scoreText2.draw(self.screen)
         passed = currentTime - self.timer
         if passed < 750:
             self.gameOverText.draw(self.screen)
@@ -534,14 +600,12 @@ class AoS(object):
                 self.reset(0, 3, True)
                 self.screen.blit(self.background, (0, 0))
                 self.mainmenu()
-                
-
             elif self.startGame:
                 if len(self.enemies) == 0:
                     currentTime = time.get_ticks()
                     if currentTime - self.gameTimer < 3000:
                         self.screen.blit(self.background, (0, 0))
-                        self.scoreText2 = Text(FONT, 20, str(self.score), YELLOW, 85, 5)
+                        self.scoreText2 = Text(FONT, 20, str(self.score), YELLOW, 715, 5)
                         self.scoreText.draw(self.screen)
                         self.scoreText2.draw(self.screen)
                         self.nextRoundText.draw(self.screen)
@@ -555,7 +619,12 @@ class AoS(object):
                 else:
                     currentTime = time.get_ticks()
                     self.screen.blit(self.background, (0, 0))
+                    self.scoreText2 = Text(FONT, 20, str(self.score), YELLOW, 715, 5)
+                    self.scoreText.draw(self.screen)
+                    self.scoreText2.draw(self.screen)
+                    self.livesText.draw(self.screen)
                     self.input()
+                    self.explosionsGroup.update(self.keys, currentTime)
                     self.allSprites.update(self.keys, currentTime, self.enemies)
                     self.collisions()
                     self.create_new_ship(self.makeNewShip, currentTime)
